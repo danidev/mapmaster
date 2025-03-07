@@ -1,0 +1,304 @@
+templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MapMaster</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        #battlemap {
+            max-width: 100%;
+            max-height: calc(100vh - 100px);
+            object-fit: contain;
+            margin: 0 auto;
+        }
+        .control-panel {
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+        button {
+            padding: 8px 12px;
+            background: #444;
+            color: white;
+            border: 1px solid #666;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #555;
+        }
+        button.active {
+            background: #336;
+            border-color: #99f;
+        }
+        .token-selector {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 15px;
+            z-index: 10;
+            display: none;
+            max-width: 80%;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+        .token-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .token-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .token-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .token-image {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .token-name {
+            margin-top: 5px;
+            font-size: 12px;
+            text-align: center;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .close-button {
+            margin-top: 15px;
+            width: 100%;
+        }
+        
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+            .token-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .token-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            button {
+                padding: 10px;
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img id="battlemap" src="/stream" alt="Battlemap">
+        
+        <div class="token-selector" id="tokenSelector">
+            <h3>Select Token</h3>
+            <div class="token-grid" id="tokenGrid">
+                <!-- Token items will be inserted here -->
+            </div>
+            <button class="close-button" id="closeTokenSelector">Close</button>
+        </div>
+    </div>
+    
+    <div class="control-panel">
+        <button id="addTokenBtn">Add Token</button>
+        <button id="moveTokenBtn">Move Token</button>
+        <button id="removeTokenBtn">Remove Token</button>
+    </div>
+    
+    <script>
+        // Application state
+        let state = {
+            mode: 'view', // 'view', 'add', 'move', 'remove'
+            availableTokens: [],
+            activeTokens: [],
+            selectedToken: null,
+            placementPosition: null
+        };
+
+        // DOM elements
+        const battlemap = document.getElementById('battlemap');
+        const tokenSelector = document.getElementById('tokenSelector');
+        const tokenGrid = document.getElementById('tokenGrid');
+        const closeTokenSelectorBtn = document.getElementById('closeTokenSelector');
+        const addTokenBtn = document.getElementById('addTokenBtn');
+        const moveTokenBtn = document.getElementById('moveTokenBtn');
+        const removeTokenBtn = document.getElementById('removeTokenBtn');
+
+        // Set initial mode
+        setMode('view');
+
+        // Load available tokens
+        loadAvailableTokens();
+        
+        // Set up event listeners
+        closeTokenSelectorBtn.addEventListener('click', () => {
+            tokenSelector.style.display = 'none';
+        });
+
+        addTokenBtn.addEventListener('click', () => {
+            setMode('add');
+        });
+
+        moveTokenBtn.addEventListener('click', () => {
+            setMode('move');
+        });
+
+        removeTokenBtn.addEventListener('click', () => {
+            setMode('remove');
+        });
+
+        battlemap.addEventListener('click', handleMapClick);
+
+        function setMode(mode) {
+            state.mode = mode;
+            
+            // Update button states
+            addTokenBtn.classList.toggle('active', mode === 'add');
+            moveTokenBtn.classList.toggle('active', mode === 'move');
+            removeTokenBtn.classList.toggle('active', mode === 'remove');
+        }
+
+        function loadAvailableTokens() {
+            fetch('/api/tokens')
+                .then(response => response.json())
+                .then(data => {
+                    state.availableTokens = data.tokens;
+                    populateTokenSelector();
+                })
+                .catch(error => {
+                    console.error('Error loading tokens:', error);
+                });
+        }
+
+        function populateTokenSelector() {
+            tokenGrid.innerHTML = '';
+            
+            state.availableTokens.forEach(token => {
+                const tokenItem = document.createElement('div');
+                tokenItem.className = 'token-item';
+                tokenItem.innerHTML = `
+                    <img src="/api/token_image?path=${encodeURIComponent(token.path)}" 
+                         alt="${token.name}" class="token-image">
+                    <div class="token-name">${token.name}</div>
+                `;
+                
+                tokenItem.addEventListener('click', () => {
+                    selectTokenAndClose(token);
+                });
+                
+                tokenGrid.appendChild(tokenItem);
+            });
+        }
+
+        function selectTokenAndClose(token) {
+            if (state.mode === 'add' && state.placementPosition) {
+                addTokenAtPosition(token.path, state.placementPosition);
+                tokenSelector.style.display = 'none';
+            }
+        }
+
+        function handleMapClick(e) {
+            // Calculate position relative to the image
+            const rect = battlemap.getBoundingClientRect();
+            
+            // Get position as a percentage of the image dimensions
+            const x = Math.round((e.clientX - rect.left) / rect.width * 800);
+            const y = Math.round((e.clientY - rect.top) / rect.height * 600);
+            
+            const position = [x, y];
+            
+            if (state.mode === 'add') {
+                state.placementPosition = position;
+                showTokenSelector();
+            }
+            else if (state.mode === 'move') {
+                // Logic for moving tokens will go here
+                console.log('Move token at', position);
+            }
+            else if (state.mode === 'remove') {
+                // Logic for removing tokens will go here
+                console.log('Remove token at', position);
+            }
+        }
+
+        function showTokenSelector() {
+            tokenSelector.style.display = 'block';
+        }
+
+        function addTokenAtPosition(tokenPath, position) {
+            fetch('/api/add_token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    token_path: tokenPath,
+                    position: position
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Token added:', data.token);
+                } else {
+                    console.error('Error adding token:', data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error adding token:', error);
+            });
+        }
+
+        // Periodically refresh active tokens
+        function refreshActiveTokens() {
+            fetch('/api/active_tokens')
+                .then(response => response.json())
+                .then(data => {
+                    state.activeTokens = data.tokens;
+                })
+                .catch(error => {
+                    console.error('Error refreshing active tokens:', error);
+                });
+        }
+
+        // Refresh active tokens every 5 seconds
+        setInterval(refreshActiveTokens, 5000);
+    </script>
+</body>
+</html>
