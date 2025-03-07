@@ -103,6 +103,7 @@ Upcoming features:
 - ⬜ Token initiative tracking
 - ⬜ Fog of war
 - ⬜ Distance measurement
+- ⬜ Persistence: Save and load map and token states
 
 ## Directory Structure
 
