@@ -27,10 +27,10 @@ MapMaster is a lightweight tool designed for Game Masters to display battle maps
 ### Setup
 
 1. Clone the repository:
-   ```
-   git clone https://github.com/yourusername/mapmaster.git
-   cd mapmaster
-   ```
+  ```
+  git clone https://github.com/yourusername/mapmaster.git
+  cd mapmaster
+  ```
 
 2. Create and activate a virtual environment:
   ```
@@ -92,16 +92,17 @@ To display the map on a dedicated Raspberry Pi screen:
 
 MapMaster is currently in active development. The following features are implemented:
 
-✅ Basic map loading and display
-✅ Token placement and movement
-✅ Grid overlay
-✅ Web client streaming
-✅ Raspberry Pi optimized client
+- ✅ Basic map loading and display
+- ✅ Token placement and movement
+- ✅ Grid overlay
+- ✅ Web client streaming
+- ✅ Raspberry Pi optimized client
+
 Upcoming features:
 
-⬜ Token initiative tracking
-⬜ Fog of war
-⬜ Distance measurement
+- ⬜ Token initiative tracking
+- ⬜ Fog of war
+- ⬜ Distance measurement
 
 ## Directory Structure
 
