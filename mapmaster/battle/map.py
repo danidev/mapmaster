@@ -37,13 +37,61 @@ class MapManager:
         
         # State tracking
         self.drawing_enabled = True
-        self.grid_enabled = config.get("grid_enabled", False)
+        self.grid_enabled = True  # Force grid to be enabled at startup
         self.grid_size = config.get("grid_size", 50)
         self.grid_color = tuple(config.get("grid_color", [100, 100, 100, 128]))
         self.grid_offset = (0, 0)
         
+        # Map-specific grid configurations
+        self.map_grid_configs = {}
+        self.load_map_grid_configs()
+        
         # Load map files
         self.refresh_map_list()
+    
+    def load_map_grid_configs(self):
+        """Load map-specific grid configurations from a JSON file."""
+        grid_config_file = os.path.join(self.config.get("annotations_directory", "annotations"), "map_grids.json")
+        
+        if os.path.exists(grid_config_file):
+            try:
+                with open(grid_config_file, 'r') as f:
+                    self.map_grid_configs = json.load(f)
+            except (json.JSONDecodeError, IOError) as e:
+                print(f"Error loading map grid configurations: {e}")
+                self.map_grid_configs = {}
+        else:
+            # Create a default empty configuration file
+            self.map_grid_configs = {}
+            
+        # Initialize maps with default grid settings
+        self.initialize_default_grid_configs()
+        self.save_map_grid_configs()
+    
+    def initialize_default_grid_configs(self):
+        """Initialize default 22x16 grid configurations for all maps."""
+        # Get the list of map files
+        map_files = get_image_files(self.maps_directory)
+        
+        # Add default configuration for each map that doesn't have one
+        for map_path in map_files:
+            map_filename = os.path.basename(map_path)
+            if map_filename not in self.map_grid_configs:
+                self.map_grid_configs[map_filename] = {
+                    'rows': 16,
+                    'columns': 22,
+                    'offset': (0, 0)
+                }
+    
+    def save_map_grid_configs(self):
+        """Save map-specific grid configurations to a JSON file."""
+        grid_config_file = os.path.join(self.config.get("annotations_directory", "annotations"), "map_grids.json")
+        
+        try:
+            with open(grid_config_file, 'w') as f:
+                json.dump(self.map_grid_configs, f, indent=2)
+        except IOError as e:
+            print(f"Error saving map grid configurations: {e}")
     
     def refresh_map_list(self):
         """Refresh the list of available map files."""
@@ -92,6 +140,9 @@ class MapManager:
         
         # Try to load saved annotations
         self.load_annotations()
+        
+        # After loading the map, update grid settings based on map-specific config
+        self.update_grid_for_current_map()
         
         return True
     
@@ -235,26 +286,53 @@ class MapManager:
     
     def draw_grid(self):
         """Draw the grid overlay."""
-        if not self.grid_enabled or not self.current_map_surface:
+        if not self.current_map_surface:
             return
             
+        # Force grid to be drawn regardless of grid_enabled setting during startup
+        # After startup, respect the grid_enabled setting
+        
         map_rect = self.current_map_surface.get_rect()
         map_rect.topleft = self.map_position
         
         # Create a grid overlay surface
         grid_surface = pygame.Surface(map_rect.size, pygame.SRCALPHA)
         
-        # Draw horizontal lines
-        y = self.grid_offset[1] % self.grid_size
-        while y < map_rect.height:
-            pygame.draw.line(grid_surface, self.grid_color, (0, y), (map_rect.width, y))
-            y += self.grid_size
+        # Get map-specific grid config
+        map_filename = os.path.basename(self.current_map) if self.current_map else ""
+        grid_config = self.map_grid_configs.get(map_filename, {})
+        
+        # If rows and columns are specified, use them to draw the grid
+        if 'rows' in grid_config and 'columns' in grid_config:
+            rows = grid_config['rows']
+            columns = grid_config['columns']
             
-        # Draw vertical lines
-        x = self.grid_offset[0] % self.grid_size
-        while x < map_rect.width:
-            pygame.draw.line(grid_surface, self.grid_color, (x, 0), (x, map_rect.height))
-            x += self.grid_size
+            # Calculate cell size
+            cell_width = map_rect.width / columns
+            cell_height = map_rect.height / rows
+            
+            # Draw horizontal lines (rows + 1)
+            for i in range(rows + 1):
+                y = i * cell_height
+                pygame.draw.line(grid_surface, self.grid_color, (0, y), (map_rect.width, y))
+            
+            # Draw vertical lines (columns + 1)
+            for i in range(columns + 1):
+                x = i * cell_width
+                pygame.draw.line(grid_surface, self.grid_color, (x, 0), (x, map_rect.height))
+        else:
+            # Fall back to fixed-size grid
+            # Draw horizontal lines
+            y = self.grid_offset[1] % self.grid_size
+            while y < map_rect.height:
+                pygame.draw.line(grid_surface, self.grid_color, (0, y), (map_rect.width, y))
+                y += self.grid_size
+                
+            # Draw vertical lines
+            x = self.grid_offset[0] % self.grid_size
+            while x < map_rect.width:
+                pygame.draw.line(grid_surface, self.grid_color, (x, 0), (x, map_rect.height))
+                x += self.grid_size
             
         # Blit the grid onto the screen at map position
         self.screen.blit(grid_surface, map_rect.topleft)
@@ -269,9 +347,12 @@ class MapManager:
         # Draw the map
         self.screen.blit(self.current_map_surface, self.map_position)
         
-        # Draw the grid if enabled (handled separately in main.py)
-        # if self.grid_enabled:
-        #     self.draw_grid()
+        # Draw the grid if enabled
+        self.draw_grid()  # Always call draw_grid, let it check if grid is enabled
+            
+        # Draw annotations if any
+        if self.annotations_surface:
+            self.screen.blit(self.annotations_surface, self.map_position)
             
         return True
     
@@ -291,3 +372,87 @@ class MapManager:
         if not self.current_map:
             return None
         return self.current_map
+    
+    def update_grid_for_current_map(self):
+        """Update grid settings for the current map."""
+        if not self.current_map:
+            return
+            
+        map_filename = os.path.basename(self.current_map)
+        
+        # If this map doesn't have a grid config yet, create a default one with 22x16 grid
+        if map_filename not in self.map_grid_configs and self.current_map_surface:
+            # Default to a 22x16 grid as required
+            default_rows = 16
+            default_columns = 22
+            self.map_grid_configs[map_filename] = {
+                'rows': default_rows,
+                'columns': default_columns,
+                'offset': (0, 0)
+            }
+            self.save_map_grid_configs()
+            
+        # Now continue with loading the config as before
+        if map_filename in self.map_grid_configs:
+            grid_config = self.map_grid_configs[map_filename]
+            
+            # If rows and columns are specified, calculate grid size
+            if 'rows' in grid_config and 'columns' in grid_config:
+                rows = max(1, grid_config.get('rows', 16))  # Default to 16 rows
+                columns = max(1, grid_config.get('columns', 22))  # Default to 22 columns
+                
+                if self.current_map_surface:
+                    # Calculate grid size based on map dimensions and row/column count
+                    map_rect = self.current_map_surface.get_rect()
+                    grid_width = map_rect.width / columns
+                    grid_height = map_rect.height / rows
+                    
+                    # Use the smaller dimension to ensure uniform grid cells
+                    self.grid_size = min(grid_width, grid_height)
+                    
+                    # Notify token manager that grid size has changed (if tokens exist)
+                    self.update_token_sizes()
+            else:
+                # Use specified grid size if available
+                self.grid_size = grid_config.get('grid_size', self.grid_size)
+                self.update_token_sizes()
+                
+            # Set other grid properties if available
+            self.grid_offset = tuple(grid_config.get('offset', self.grid_offset))
+    
+    def update_token_sizes(self):
+        """Update token sizes to match the current grid size."""
+        # If we have a token manager attached, update all token sizes
+        if hasattr(self, 'token_manager') and self.token_manager:
+            self.token_manager.resize_all_tokens(self.grid_size)
+    
+    def set_map_grid_config(self, rows, columns, offset=(0, 0)):
+        """Set grid configuration for the current map."""
+        if not self.current_map:
+            return False
+            
+        map_filename = os.path.basename(self.current_map)
+        self.map_grid_configs[map_filename] = {
+            'rows': rows,
+            'columns': columns,
+            'offset': offset
+        }
+        
+        # Update grid for current map
+        self.update_grid_for_current_map()
+        
+        # Save configurations
+        self.save_map_grid_configs()
+        return True
+
+    def set_token_manager(self, token_manager):
+        """Connect this map manager to a token manager for resizing tokens."""
+        self.token_manager = token_manager
+        
+        # Set the initial grid size in the token manager
+        if hasattr(self, 'grid_size') and self.grid_size > 0:
+            self.token_manager.current_grid_size = self.grid_size
+            
+        # Initial update of token sizes based on grid
+        if hasattr(self, 'current_map') and self.current_map:
+            self.update_grid_for_current_map()

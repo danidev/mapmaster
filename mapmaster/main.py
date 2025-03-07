@@ -101,6 +101,9 @@ class MapMasterApp:
 
         # Connect token manager to overlay manager
         self.overlay_manager.token_manager = self.token_manager
+
+        # Connect map manager to token manager
+        self.map_manager.set_token_manager(self.token_manager)
         
         # State tracking
         self.running = False

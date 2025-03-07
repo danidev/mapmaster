@@ -11,7 +11,7 @@ DEFAULT_CONFIG = {
     "tokens_directory": "assets/tokens",
     "annotations_directory": "annotations",
     "port": 5000,
-    "grid_enabled": False,
+    "grid_enabled": True,  # Changed to True
     "grid_size": 50,
     "grid_color": [100, 100, 100, 128],  # RGBA
 }
