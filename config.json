@@ -1,0 +1,17 @@
+{
+  "window_width": 1066,
+  "window_height": 648,
+  "fullscreen": false,
+  "maps_directory": "assets/maps",
+  "tokens_directory": "assets/tokens",
+  "annotations_directory": "annotations",
+  "port": 5000,
+  "grid_enabled": false,
+  "grid_size": 50,
+  "grid_color": [
+    100,
+    100,
+    100,
+    128
+  ]
+}
